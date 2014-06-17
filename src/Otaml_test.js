@@ -14,9 +14,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-var Otml = require('./Otaml');
+var Otaml = require('./Otaml');
 var ValidateHtml = require('./ValidateHtml');
 var RandHtml = require('./RandHtml');
+var Common = require('./Common');
 
 var makeTextOperation = function(oldval, newval) {
     if (oldval === newval) { return; }
@@ -39,13 +40,11 @@ var makeTextOperation = function(oldval, newval) {
     };
 };
 
-var patchString = function (oldString, offset, toRemove, toInsert)
-{
-    return oldString.substring(0, offset) + toInsert + oldString.substring(offset + toRemove);
-};
-
-var cloneOp = function (op) {
-    return { toInsert: op.toInsert, toRemove: op.toRemove, offset: op.offset };
+var displayOp = function (stateA, op) {
+    var toRemove = stateA.substr(op.offset, op.toRemove).replace(/\n/g, '\\n');
+    var toInsert = op.toInsert.replace(/\n/g, '\\n');
+    console.log('{\n    offset: ' + op.offset + ',\n    toRemove: ' + op.toRemove +
+        ' (``' + toRemove + "'')\n    toInsert: ``" + toInsert + "''" + "\n}\n");
 };
 
 var cycle = function () {
@@ -54,43 +53,48 @@ var cycle = function () {
 
     var htmlB = RandHtml.textToHtml(RandHtml.alterText(text, 10));
     var opAB = makeTextOperation(htmlA, htmlB);
-    ValidateHtml.validate(htmlB);
 
     // It's possible that there is actually no difference, just continue in that case.
     if (!opAB) { return; }
+
+    opAB = Otaml.expandOp(htmlA, opAB);
+    ValidateHtml.validate(htmlB);
 
     for (var i = 0; i < 100; i++) {
 
         var htmlC = RandHtml.textToHtml(RandHtml.alterText(text, 10));
         var opAC = makeTextOperation(htmlA, htmlC);
 
-        var htmlC = patchString(htmlA, opAC.offset, opAC.toRemove, opAC.toInsert);
-        ValidateHtml.validate(htmlC);
-
         if (!opAC) { continue; }
 
-        var opBD = cloneOp(opAC);
-        Otml.transform(opBD, opAB);
+        opAC = Otaml.expandOp(htmlA, opAC);
+
+        var htmlC = Common.patchString(htmlA, opAC.offset, opAC.toRemove, opAC.toInsert);
+        ValidateHtml.validate(htmlC);
+
+
+        var opBD = Common.cloneOp(opAC);
+        opBD = Otaml.transform(htmlA, opBD, opAB);
 
         if (!opBD) { continue; }
 
-        var htmlD = patchString(htmlB, opBD.offset, opBD.toRemove, opBD.toInsert);
+        var htmlD = Common.patchString(htmlB, opBD.offset, opBD.toRemove, opBD.toInsert);
 
         try {
             ValidateHtml.validate(htmlD);
         } catch (e) {
             console.log("Original:\n");
             console.log(htmlA);
-            console.log("\nOpAB:\n");
-            console.log(opAB);
+            console.log("\nOpAB:");
+            console.log(displayOp(htmlA, opAB));
             console.log("\nStateB:\n");
             console.log(htmlB);
-            console.log("\nOpAC:\n");
-            console.log(opAC);
+            console.log("\nOpAC:");
+            console.log(displayOp(htmlA, opAC));
             console.log("\nStateC:\n");
             console.log(htmlC);
             console.log("\nOpBD:");
-            console.log(opBD);
+            console.log(displayOp(htmlB, opBD));
             console.log("\nFinal:");
             console.log(htmlD);
             throw e;

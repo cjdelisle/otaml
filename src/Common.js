@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+var PARANOIA = module.exports.PARANOIA = true;
+
 var VOID_TAG_REGEX = module.exports.VOID_TAG_REGEX = new RegExp('^(' + [
     'area',
     'base',
@@ -236,4 +238,12 @@ var serializeTag = module.exports.serializeTag = function (tag) {
     }
     out.push('>');
     return out.join('');
+};
+
+var patchString = module.exports.patchString = function (oldString, offset, toRemove, toInsert) {
+    return oldString.substring(0, offset) + toInsert + oldString.substring(offset + toRemove);
+};
+
+var cloneOp = module.exports.cloneOp = function (op) {
+    return { toInsert: op.toInsert, toRemove: op.toRemove, offset: op.offset };
 };
