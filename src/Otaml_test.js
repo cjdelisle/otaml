@@ -44,12 +44,17 @@ var patchString = function (oldString, offset, toRemove, toInsert)
     return oldString.substring(0, offset) + toInsert + oldString.substring(offset + toRemove);
 };
 
+var cloneOp = function (op) {
+    return { toInsert: op.toInsert, toRemove: op.toRemove, offset: op.offset };
+};
+
 var cycle = function () {
-    var text = RandHtml.randomAscii(3000);
+    var text = RandHtml.randomAscii(100);
     var htmlA = RandHtml.textToHtml(text);
 
     var htmlB = RandHtml.textToHtml(RandHtml.alterText(text, 10));
     var opAB = makeTextOperation(htmlA, htmlB);
+    ValidateHtml.validate(htmlB);
 
     // It's possible that there is actually no difference, just continue in that case.
     if (!opAB) { return; }
@@ -59,15 +64,37 @@ var cycle = function () {
         var htmlC = RandHtml.textToHtml(RandHtml.alterText(text, 10));
         var opAC = makeTextOperation(htmlA, htmlC);
 
+        var htmlC = patchString(htmlA, opAC.offset, opAC.toRemove, opAC.toInsert);
+        ValidateHtml.validate(htmlC);
+
         if (!opAC) { continue; }
 
-        var opAD = Otml.transform(opAC, opAB);
+        var opBD = cloneOp(opAC);
+        Otml.transform(opBD, opAB);
 
-        if (!opAD) { continue; }
+        if (!opBD) { continue; }
 
-        var htmlD = patchString(htmlA, opAD.offset, opAD.toRemove, opAD.toInsert);
+        var htmlD = patchString(htmlB, opBD.offset, opBD.toRemove, opBD.toInsert);
 
-        ValidateHtml.validate(htmlD);
+        try {
+            ValidateHtml.validate(htmlD);
+        } catch (e) {
+            console.log("Original:\n");
+            console.log(htmlA);
+            console.log("\nOpAB:\n");
+            console.log(opAB);
+            console.log("\nStateB:\n");
+            console.log(htmlB);
+            console.log("\nOpAC:\n");
+            console.log(opAC);
+            console.log("\nStateC:\n");
+            console.log(htmlC);
+            console.log("\nOpBD:");
+            console.log(opBD);
+            console.log("\nFinal:");
+            console.log(htmlD);
+            throw e;
+        }
     }
 };
 
