@@ -16,13 +16,14 @@
  */
 
 var Common = require('./Common');
-
+var Sha = require('./SHA256');
 
 /**
  * Expand an operation to cover enough HTML that any naive transformation
  * will result in correct HTML.
  */
 var expandOp = module.exports.expandOp = function (html, op) {
+//return op;
     if (Common.PARANOIA && typeof(html) !== 'string') { throw new Error(); }
     var ctx = {};
     for (;;) {
@@ -55,6 +56,60 @@ var expandOp = module.exports.expandOp = function (html, op) {
     }
 };
 
+var operationsEqual = function (opA, opB) {
+    return (opA.offset === opB.offset &&
+        opA.toRemove === opB.toRemove &&
+        opA.toInsert === opB.toInsert);
+};
+
+var hash = function (text) {
+    return Sha.hex_sha256(text);
+};
+
+var transformB = function (html, toTransform, transformBy) {
+
+    var transformByEndOffset = transformBy.offset + transformBy.toRemove;
+    if (toTransform.offset > transformByEndOffset) {
+        // simple rebase
+        toTransform.offset -= transformBy.toRemove;
+        toTransform.offset += transformBy.toInsert.length;
+        return toTransform;
+    }
+
+    var toTransformEndOffset = toTransform.offset + toTransform.toRemove;
+
+    if (transformBy.offset > toTransformEndOffset) {
+        // we're before them, no transformation needed.
+        return toTransform;
+    }
+
+    // so we overlap, we're just going to revert one and apply the other.
+    // The one which affects more content should probably be applied.
+    var toRevert = toTransform;
+    var toApply = transformBy;
+    if        (toTransform.toInsert.length > transformBy.toInsert.length) {
+        toRevert = transformBy;
+        toApply = toTransform;
+    } else if (toTransform.toInsert.length < transformBy.toInsert.length) {
+        // fall through
+    } else if (toTransform.toRemove > transformBy.toRemove) {
+        toRevert = transformBy;
+        toApply = toTransform;
+    } else if (toTransform.toRemove < transformBy.toRemove) {
+        // fall through
+    } else {
+        if (operationsEqual(toTransform, transformBy)) { return null; }
+        
+    }
+
+    if (transformBy.offset > transformBy.offset) {
+        // transformBy has deleted our offset.
+        
+    }
+
+    // if toTransform 
+};
+
 var transform = module.exports.transform = function (html, toTransform, transformBy) {
 
     toTransform = Common.cloneOp(toTransform);
@@ -63,13 +118,24 @@ var transform = module.exports.transform = function (html, toTransform, transfor
     transformBy = Common.cloneOp(transformBy);
     transformBy = expandOp(html, transformBy);
 
-    if (toTransform.offset > transformBy.offset) {
-        if (toTransform.offset > transformBy.offset + transformBy.toRemove) {
+    if (toTransform.offset >= transformBy.offset) {
+        if (toTransform.offset >= transformBy.offset + transformBy.toRemove) {
             // simple rebase
             toTransform.offset -= transformBy.toRemove;
             toTransform.offset += transformBy.toInsert.length;
             return toTransform;
         }
+
+        // They deleted our begin offset...
+
+        var toTransformEndOffset = toTransform.offset + toTransform.toRemove;
+        var transformByEndOffset = transformBy.offset + transformBy.toRemove;
+        if (transformByEndOffset >= toTransformEndOffset) {
+            // They also deleted our end offset, lets forget we wrote anything because
+            // whatever it was, they deleted it's context.
+            return null;
+        }
+
         // goto the end, anything you deleted that they also deleted should be skipped.
         var newOffset = transformBy.offset + transformBy.toInsert.length;
         toTransform.toRemove = 0; //-= (newOffset - toTransform.offset);

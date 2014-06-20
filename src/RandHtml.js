@@ -164,7 +164,7 @@ var randomAscii = module.exports.randomAscii = function (length) {
 
 var alterText = module.exports.alterText = function (text, maxCharsToAlter) {
     var offset = (Math.random() * 10000) % text.length;
-    var toDelete = (Math.random() * 10000) % Math.min((text.length - offset), maxCharsToAlter)
+    var toDelete = (Math.random() * 10000) % Math.min((text.length - offset), maxCharsToAlter);
     var toInsert = randomAscii((Math.random() * 10000) % maxCharsToAlter);
     return text.substring(0, offset) + toInsert + text.substring(offset + toDelete);
 };
